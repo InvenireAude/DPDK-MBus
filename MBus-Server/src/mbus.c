@@ -27,7 +27,7 @@ void mbus_extract(struct rte_mbuf *m, char** pp_data, uint16_t *p_data_len, size
 }
 /*******************************************************************************/
 #define DEST_IP ((226<<24) + (1<<16) + (1<<8) + 1) /* dest ip = 192.168.1.1 */
-void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence){
+void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence, size_t port){
 
 
   char *pkt_data = rte_pktmbuf_mtod(created_pkt, char *);
@@ -43,7 +43,7 @@ void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence){
   created_pkt->data_off -= sizeof(struct udp_hdr);
 
   udp_hdr->src_port = htons(55555);
-  udp_hdr->dst_port = htons(34003);
+  udp_hdr->dst_port = htons(port);
   udp_hdr->dgram_len = htons(sizeof(struct udp_hdr) + orig_data_len);
 
   struct ipv4_hdr *ipv4_hdr = (struct ipv4_hdr *)udp_hdr;

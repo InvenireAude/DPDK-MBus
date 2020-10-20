@@ -16,6 +16,7 @@ iai_generate_flow(
 
 bool iai_filter(struct rte_mbuf *m,
     uint32_t ipDstAddress,    uint32_t ipDstMask,
-    uint16_t ipPortStart,     uint16_t ipPortEnd);
+    uint16_t ipPortStart,     uint16_t ipPortEnd,
+    uint16_t *pPort);
 
 #endif

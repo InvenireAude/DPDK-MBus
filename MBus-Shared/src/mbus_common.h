@@ -5,7 +5,7 @@
 
 struct shared_info {
 	uint16_t num_ports;
-	uint16_t id[RTE_MAX_ETHPORTS];
+  uint16_t num_ring_pairs;
 
   char somedata[1024];
 
@@ -19,5 +19,20 @@ struct shared_info {
 
 #define MBUS_SHARED_RING_IN    "mbus_ring_in"
 #define MBUS_SHARED_RING_OUT   "mbus_ring_out"
+
+#define MBUS_MAX_IO_RINGS 16
+
+struct ring_pair{
+  struct rte_ring *ring_in;
+  struct rte_ring *ring_out;
+};
+
+static inline const char *iai_get_ring_name(const char* base, unsigned int id)
+{
+	static char buffer[2 * sizeof(MBUS_SHARED_RING_IN) + 2];
+
+	snprintf(buffer, sizeof(buffer) - 1, "%s_%d", base, id);
+	return buffer;
+}
 
 #endif

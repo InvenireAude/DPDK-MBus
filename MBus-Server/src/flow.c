@@ -71,7 +71,8 @@ iai_generate_flow(
 bool iai_filter(struct rte_mbuf *m,
     uint32_t ipDstAddress,    uint32_t ipDstMask,
     __attribute__((unused))  uint16_t ipPortStart,
-    __attribute__((unused))  uint16_t ipPortEnd){
+    __attribute__((unused))  uint16_t ipPortEnd,
+    uint16_t *pPort){
 
 	  struct ether_hdr *eth_hdr;
     struct ipv4_hdr  *ip_hdr;
@@ -94,10 +95,15 @@ bool iai_filter(struct rte_mbuf *m,
       return false;
     };
 
-	  udp_hdr = (struct udp_hdr *)(ip_hdr + 1);
-    uint16_t dst_port = ntohs(udp_hdr->dst_port);
-    //printf("Port = %d \n",dst_port);
+    if ((ntohl(ip_hdr->src_addr) & ipDstMask) == 0x99999999){
+      //dirty trick filer out my packets
+      return false;
+    };
 
-    return ipPortStart <= dst_port && dst_port <= ipPortEnd;
+	  udp_hdr = (struct udp_hdr *)(ip_hdr + 1);
+
+    //printf("Port = %d \n",dst_port);
+    *pPort = ntohs(udp_hdr->dst_port);
+    return ipPortStart <= *pPort && *pPort <= ipPortEnd;
 }
 /*******************************************************************************/

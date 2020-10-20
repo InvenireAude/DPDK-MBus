@@ -10,14 +10,12 @@
 
 #include "flow.h"
 
-#include "../../MBus-Shared/src/mbus_common.h"
 
 /*******************************************************************************/
 struct MainContext TheMainContext  = {
   .nr_queues = 1,
   .port_id = 0,
-  .ring_in = NULL,
-  .ring_out = NULL,
+  .nr_ring_pairs = 0,
   .mbuf_pool = NULL
 };
 
@@ -211,17 +209,26 @@ void iai_init_ports(void){
 #define RING_IN_SIZE 1024
 #define RING_OUT_SIZE 1024
 
-void iai_init_rings(void){
+void iai_init_ring_pair(struct ring_pair* rings, uint16_t id){
 
-  printf("Initializing rings ... \n");
-	TheMainContext.ring_in= rte_ring_create(MBUS_SHARED_RING_IN, RING_IN_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
-  if (TheMainContext.ring_in == NULL)
+  printf("Initializing rings [ %d ]... \n", id);
+	rings->ring_in= rte_ring_create(iai_get_ring_name(MBUS_SHARED_RING_IN, id), RING_IN_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
+  if (rings->ring_in == NULL)
 			rte_exit(EXIT_FAILURE, "Cannot create ring input queue ");
 
-	TheMainContext.ring_out= rte_ring_create(MBUS_SHARED_RING_OUT, RING_OUT_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
-  if (TheMainContext.ring_out == NULL)
+	rings->ring_out= rte_ring_create(iai_get_ring_name(MBUS_SHARED_RING_OUT, id), RING_OUT_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
+  if (rings->ring_out == NULL)
 			rte_exit(EXIT_FAILURE, "Cannot create ring output queue ");
 
   printf("Done! \n");
+}
+/*******************************************************************************/
+void iai_init_rings(uint16_t num_ring_pairs){
+  int i;
+  for(i=0; i<num_ring_pairs; i++){
+    iai_init_ring_pair(&TheMainContext.ring_pairs[i], i);
+    TheMainContext.nr_ring_pairs++;
+  }
+  shared->num_ring_pairs = num_ring_pairs;
 }
 /*******************************************************************************/

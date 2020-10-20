@@ -30,6 +30,8 @@
 #define EMPTY_MASK 0x0 /* empty mask */
 
 static size_t sequence = 0L;
+static uint16_t start_port      = 34001;
+static uint16_t num_port_pairs  = 2;
 
 static void main_loop(void)
 {
@@ -49,20 +51,28 @@ static void main_loop(void)
       	for (j = 0; j < nb_rx; j++) {
 					struct rte_mbuf *m = mbufs[j];
 
-          bool bMatch = TheMainContext.flow ? true : iai_filter(m, DEST_IP, FULL_MASK, 34001, 34001);
+          uint16_t port;
+
+          bool bMatch = TheMainContext.flow ? true : iai_filter(m, DEST_IP, FULL_MASK,
+                                                                start_port, start_port + 2*num_port_pairs,
+                                                                &port);
 
           if(bMatch){
 
             char     *data;
             uint16_t data_len;
             size_t   sequence;
-
             mbus_extract(m, &data, &data_len, &sequence);
             printf("Data %08ld %d %ld\n",sequence, data_len, (long)data);
-            //printf("Data %08ld [%.*s]\n",sequence, data_len, data);
 
-            nb_enq = rte_ring_sp_enqueue(TheMainContext.ring_in, m);
-            printf("Result %d, size: %d \n", nb_enq, rte_ring_count(TheMainContext.ring_in));
+            if( (port - start_port) & 0x1 ){
+              printf("Who has it ? %ld - %ld",*(size_t*)data, sequence);
+              rte_pktmbuf_free(m);
+            }else{
+              uint16_t ring_id = (port - start_port) / 2;
+              nb_enq = rte_ring_sp_enqueue(TheMainContext.ring_pairs[ring_id].ring_in, m);
+              printf("Result %d, size: %d \n", nb_enq, rte_ring_count(TheMainContext.ring_pairs[ring_id].ring_in));
+            }
 
           }else{
             rte_pktmbuf_free(m);
@@ -71,13 +81,19 @@ static void main_loop(void)
 			}
 
     struct rte_mbuf *m;
-    int rc = rte_ring_sc_dequeue(TheMainContext.ring_out, (void**)&m);
-    if(rc == 0){
-      printf("Data from client [%.*s]\n", m->data_len, rte_pktmbuf_mtod(m, char *));
-      mbus_prepare(m, sequence);
-      sequence = (sequence + 1) % 5;
-      int rc = rte_eth_tx_burst(TheMainContext.port_id, 0, &m, 1);
-      printf("rc = %d\n",rc);
+
+    for(int ring_id=0; ring_id<TheMainContext.nr_ring_pairs; ring_id++){
+
+      int rc = rte_ring_sc_dequeue(TheMainContext.ring_pairs[ring_id].ring_out, (void**)&m);
+
+      if(rc == 0){
+        printf("Data from client [%.*s]\n", m->data_len, rte_pktmbuf_mtod(m, char *));
+        mbus_prepare(m, sequence, start_port + 2*ring_id);
+        sequence = (sequence + 1) % 5;
+        int rc = rte_eth_tx_burst(TheMainContext.port_id, 0, &m, 1);
+        printf("rc = %d\n",rc);
+      }
+
     }
 
 		}
@@ -94,18 +110,18 @@ int main(int argc, char **argv){
 
   int ret;
 
-
 	ret = rte_eal_init(argc, argv);
 	if (ret < 0)
 		rte_exit(EXIT_FAILURE, ":: invalid EAL arguments\n");
 
 	iai_setup_signals();
 
-
   iai_setup_mbuf();
   iai_init_shared();
 	iai_init_ports();
-  iai_init_rings();
+
+  iai_init_rings(num_port_pairs);
+
   iai_init_flow(DEST_IP, FULL_MASK, 34000, 34003);
 
 	main_loop();
