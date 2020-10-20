@@ -28,6 +28,8 @@ void iai_setup_client(void){
 
   TheMainContext.nr_ring_pairs = shared->num_ring_pairs;
 
+  printf("Number of shared rings: %d \n", TheMainContext.nr_ring_pairs);
+
   for(int ring_id=0; ring_id<TheMainContext.nr_ring_pairs; ring_id++){
     TheMainContext.ring_pairs[ring_id].ring_in = rte_ring_lookup(iai_get_ring_name(MBUS_SHARED_RING_IN,ring_id));
     TheMainContext.ring_pairs[ring_id].ring_out = rte_ring_lookup(iai_get_ring_name(MBUS_SHARED_RING_OUT,ring_id));

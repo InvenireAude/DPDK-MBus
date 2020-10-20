@@ -13,9 +13,6 @@
 
 /*******************************************************************************/
 struct MainContext TheMainContext  = {
-  .nr_queues = 1,
-  .port_id = 0,
-  .nr_ring_pairs = 0,
   .mbuf_pool = NULL
 };
 
@@ -71,33 +68,15 @@ void iai_assert_link_status(uint16_t port_id){
 		rte_exit(EXIT_FAILURE, ":: error: link is still down\n");
 }
 /*******************************************************************************/
-
-/*******************************************************************************/
-void iai_init_flow(uint32_t ipDstAddress,    uint32_t ipDstMask,
-                  uint16_t ipPortStart,     uint16_t ipPortEnd){
-
-	struct rte_flow_error error;
-
-	TheMainContext.flow = iai_generate_flow(TheMainContext.port_id, 1, ipDstAddress, ipDstMask, ipPortStart, ipPortEnd, &error);
-
-	if (!TheMainContext.flow) {
-		printf("Flow can't be created %d message: %s\n",
-			error.type,
-			error.message ? error.message : "(no stated reason)");
-		//rte_exit(EXIT_FAILURE, "error in creating flow");
-	}
-
-}
 /*******************************************************************************/
 #define RX_RING_SIZE 1024
 #define TX_RING_SIZE 1024
 
 /*******************************************************************************/
-void iai_init_port(uint16_t port_id){
+void iai_init_port(uint16_t port_id, uint16_t nr_queues){
 
 	int ret;
 	uint16_t i;
-  int nr_queues = 1;
 
 	uint16_t nb_rxd = RX_RING_SIZE;
 	uint16_t nb_txd = TX_RING_SIZE;
@@ -187,48 +166,36 @@ void iai_init_port(uint16_t port_id){
 
 }
 /*******************************************************************************/
-void iai_init_ports(void){
-
-	uint16_t nr_ports;
-
-  nr_ports = rte_eth_dev_count_avail();
-
-	if (nr_ports == 0)
-		rte_exit(EXIT_FAILURE, ":: no Ethernet ports found\n");
-
-  TheMainContext.port_id = 0;
-
-	if (nr_ports != 1) {
-		printf(":: warn: %d ports detected, but we use only one: port %u\n",
-			nr_ports, TheMainContext.port_id);
-	}
-
-  iai_init_port(TheMainContext.port_id);
+void iai_close_port(uint16_t port_id){
+   printf("IAI eth_port = %d is closed. \n", port_id);
+//rte_flow_flush(p_port->port_id, &error);
+  rte_eth_dev_stop(port_id);
+	rte_eth_dev_close(port_id);
 }
+
 /*******************************************************************************/
 #define RING_IN_SIZE 1024
 #define RING_OUT_SIZE 1024
 
-void iai_init_ring_pair(struct ring_pair* rings, uint16_t id){
+void iai_init_ring_pair(struct ring_pair* rings){
 
-  printf("Initializing rings [ %d ]... \n", id);
-	rings->ring_in= rte_ring_create(iai_get_ring_name(MBUS_SHARED_RING_IN, id), RING_IN_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
+  printf("Initializing rings [ %d ]... \n", rings->ring_id);
+	rings->ring_in= rte_ring_create(iai_get_ring_name(MBUS_SHARED_RING_IN, rings->ring_id), RING_IN_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
   if (rings->ring_in == NULL)
 			rte_exit(EXIT_FAILURE, "Cannot create ring input queue ");
 
-	rings->ring_out= rte_ring_create(iai_get_ring_name(MBUS_SHARED_RING_OUT, id), RING_OUT_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
+	rings->ring_out= rte_ring_create(iai_get_ring_name(MBUS_SHARED_RING_OUT, rings->ring_id), RING_OUT_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
   if (rings->ring_out == NULL)
 			rte_exit(EXIT_FAILURE, "Cannot create ring output queue ");
+
+  shared->num_ring_pairs++;
 
   printf("Done! \n");
 }
 /*******************************************************************************/
-void iai_init_rings(uint16_t num_ring_pairs){
-  int i;
-  for(i=0; i<num_ring_pairs; i++){
-    iai_init_ring_pair(&TheMainContext.ring_pairs[i], i);
-    TheMainContext.nr_ring_pairs++;
-  }
-  shared->num_ring_pairs = num_ring_pairs;
+void iai_close_ring_pair(struct ring_pair* rings){
+  printf("IAI Data Ring [%d] shutdown.\n", rings->ring_id);
+  rte_ring_free(rings->ring_in);
+  rte_ring_free(rings->ring_out);
 }
 /*******************************************************************************/

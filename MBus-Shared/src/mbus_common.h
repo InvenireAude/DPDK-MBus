@@ -23,6 +23,9 @@ struct shared_info {
 #define MBUS_MAX_IO_RINGS 16
 
 struct ring_pair{
+
+  uint16_t ring_id;
+
   struct rte_ring *ring_in;
   struct rte_ring *ring_out;
 };

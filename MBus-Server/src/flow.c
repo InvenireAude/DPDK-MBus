@@ -68,42 +68,29 @@ iai_generate_flow(
 }
 
 /*******************************************************************************/
-bool iai_filter(struct rte_mbuf *m,
-    uint32_t ipDstAddress,    uint32_t ipDstMask,
-    __attribute__((unused))  uint16_t ipPortStart,
-    __attribute__((unused))  uint16_t ipPortEnd,
-    uint16_t *pPort){
+/* poor man's filtering :)
+*/
+bool iai_extract_udp(struct rte_mbuf *m, uint32_t *pDstAddress, uint32_t *pSrcAddress, uint16_t *pPort){
 
-	  struct ether_hdr *eth_hdr;
+    struct ether_hdr *eth_hdr;
     struct ipv4_hdr  *ip_hdr;
     struct udp_hdr  *udp_hdr;
 
 	  eth_hdr = rte_pktmbuf_mtod(m,struct ether_hdr *);
 		ip_hdr = (struct ipv4_hdr *)(eth_hdr + 1);
 
-   // printf("Has packet %d bytes, type: %d %d .\n", m->data_len, ip_hdr->next_proto_id, ntohs(eth_hdr->ether_type));
+    // printf("Has packet %d bytes, type: %d %d .\n", m->data_len, ip_hdr->next_proto_id, ntohs(eth_hdr->ether_type));
 
     if (ip_hdr->next_proto_id != 17){
-  //    printf("Not IP4/UDP.\n");
+    //    printf("Not IP4/UDP.\n");
       return false;
     };
 
-  //  printf("Dest = %x ? %x \n",(ntohl(ip_hdr->dst_addr) & ipDstMask) , ipDstAddress);
+   //  printf("Dest = %x ? %x \n",(ntohl(ip_hdr->dst_addr) & ipDstMask) , ipDstAddress);
 
-    if ((ntohl(ip_hdr->dst_addr) & ipDstMask) != ipDstAddress){
-      //printf("Not a match.\n");
-      return false;
-    };
-
-    if ((ntohl(ip_hdr->src_addr) & ipDstMask) == 0x99999999){
-      //dirty trick filer out my packets
-      return false;
-    };
-
-	  udp_hdr = (struct udp_hdr *)(ip_hdr + 1);
-
-    //printf("Port = %d \n",dst_port);
-    *pPort = ntohs(udp_hdr->dst_port);
-    return ipPortStart <= *pPort && *pPort <= ipPortEnd;
+    *pSrcAddress = ntohl(ip_hdr->src_addr);
+    *pDstAddress = ntohl(ip_hdr->dst_addr);
+	   udp_hdr     = (struct udp_hdr *)(ip_hdr + 1);
+    *pPort       = ntohs(udp_hdr->dst_port);
+  return true;
 }
-/*******************************************************************************/

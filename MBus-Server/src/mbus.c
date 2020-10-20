@@ -8,6 +8,9 @@
 #include "setup.h"
 #include "utils.h"
 
+/*******************************************************************************/
+
+/*******************************************************************************/
 static const uint16_t _hdr_len = sizeof(struct ether_hdr) + sizeof(struct ipv4_hdr) + sizeof(struct udp_hdr);
 
 /*******************************************************************************/
@@ -27,8 +30,7 @@ void mbus_extract(struct rte_mbuf *m, char** pp_data, uint16_t *p_data_len, size
 }
 /*******************************************************************************/
 #define DEST_IP ((226<<24) + (1<<16) + (1<<8) + 1) /* dest ip = 192.168.1.1 */
-void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence, size_t port){
-
+void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence, uint16_t port, uint16_t port_id){
 
   char *pkt_data = rte_pktmbuf_mtod(created_pkt, char *);
   uint16_t orig_data_len = created_pkt->data_len;
@@ -66,7 +68,7 @@ void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence, size_t port){
   ether_hdr--;
   created_pkt->data_off -= sizeof(struct ether_hdr);
 
-  rte_eth_macaddr_get(TheMainContext.port_id, &ether_hdr->s_addr);
+  rte_eth_macaddr_get(port_id, &ether_hdr->s_addr);
   /* Set multicast address 01-1B-19-00-00-00. */
   ether_addr_copy(&ether_multicast, &ether_hdr->d_addr);
   ether_hdr->ether_type = htons(0x0800);
