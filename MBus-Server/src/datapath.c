@@ -60,8 +60,14 @@ static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rt
   uint32_t src_ip;
   uint16_t dst_udp_port;
 
+  char     *data;
+  uint16_t data_len;
+  size_t   sequence;
+
   if(!iai_extract_udp(m, &dst_ip, &src_ip, &dst_udp_port))
     return;
+
+  printf("IP: %08x %08x %d\n",dst_ip, src_ip, dst_udp_port);
 
   for(int idx=0; idx<data_path_port->num_data_paths; idx++){
       struct data_path *dp = &data_path_port->data_paths[idx];
@@ -69,9 +75,6 @@ static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rt
 
         if(dp->_private.mbus.selector.dst_udp_port == dst_udp_port){
 
-            char     *data;
-            uint16_t data_len;
-            size_t   sequence;
             mbus_extract(m, &data, &data_len, &sequence);
             printf("Data %08ld %d %ld\n",sequence, data_len, (long)data);
 
@@ -80,9 +83,10 @@ static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rt
 
             return;
 
-        }else if(dp->_private.mbus.selector.dst_udp_port == dst_udp_port + 1){
+        }else if(dp->_private.mbus.selector.dst_udp_port + 1 == dst_udp_port ){
 
-            struct mbus_who_has_it * p_msg = rte_pktmbuf_mtod(m, struct mbus_who_has_it *);
+            mbus_extract(m, &data, &data_len, &sequence);
+            struct mbus_who_has_it * p_msg = (struct mbus_who_has_it *)data;
             printf("Who has it ? [%d] %ld - %ld" , dst_udp_port, p_msg->sequence_start, p_msg->sequence_end);
             rte_pktmbuf_free(m);
 
