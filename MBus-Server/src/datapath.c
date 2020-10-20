@@ -8,9 +8,20 @@
 #include <rte_ethdev.h>
 
 /*******************************************************************************/
+void iai_initialize_datapaths(void){
 
-struct data_path_ports the_data_path_ports;
+  const struct rte_memzone *mz;
 
+	mz = rte_memzone_reserve(MBUS_SHARED_DATA_PATHS, sizeof(struct data_path_ports),
+				rte_socket_id(), NO_FLAGS);
+
+	if (mz == NULL)
+		rte_exit(EXIT_FAILURE, "Cannot rte_memzone_reserve data paths.\n");
+
+  iai_the_context.data_path_ports = mz->addr;
+
+  memset(mz->addr, 0, sizeof(struct data_path_ports));
+}
 /*******************************************************************************/
 /*******************************************************************************/
 // static void _handle_rings_udp(struct data_path* data_path){
@@ -86,7 +97,7 @@ static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rt
 /*******************************************************************************/
 uint8_t iai_configure_data_path_port(uint8_t port_id, data_path_types type_id){
 
-  if(the_data_path_ports.num_ports >= IAI_DP_MAX_PORTS)
+  if(iai_the_context.data_path_ports->num_ports >= IAI_DP_MAX_PORTS)
     rte_exit(EXIT_FAILURE, ":: out of available IAI Data Path ports.\n");
 
   int nr_ports = rte_eth_dev_count_avail();
@@ -94,7 +105,7 @@ uint8_t iai_configure_data_path_port(uint8_t port_id, data_path_types type_id){
 	if(nr_ports <= port_id)
 		  rte_exit(EXIT_FAILURE, ":: no (more) Ethernet ports found [port_id=%d]\n", port_id);
 
-  struct data_path_port* p_new = &the_data_path_ports.ports[the_data_path_ports.num_ports];
+  struct data_path_port* p_new = &iai_the_context.data_path_ports->ports[iai_the_context.data_path_ports->num_ports];
 
   p_new->port_id = port_id;
   p_new->num_queues = 1;
@@ -113,17 +124,17 @@ uint8_t iai_configure_data_path_port(uint8_t port_id, data_path_types type_id){
     	rte_exit(EXIT_FAILURE, ":: uknown IAI Data Path port type: %d, port: %d \n", type_id, port_id);
   }
 
-  printf("IAI Data Path Port [%d]: type = %d, eth_port = %d \n", the_data_path_ports.num_ports, type_id, port_id);
+  printf("IAI Data Path Port [%d]: type = %d, eth_port = %d \n", iai_the_context.data_path_ports->num_ports, type_id, port_id);
 
-  return the_data_path_ports.num_ports++;
+  return iai_the_context.data_path_ports->num_ports++;
 }
 /*******************************************************************************/
 uint8_t iai_configure_data_path_mbus(uint8_t idx, struct data_path_selector_mbus* selector){
 
-  if(the_data_path_ports.num_ports <= idx)
+  if(iai_the_context.data_path_ports->num_ports <= idx)
     rte_exit(EXIT_FAILURE, ":: out of IAI Data Path ports range.\n");
 
-   struct data_path_port* port = &the_data_path_ports.ports[idx];
+   struct data_path_port* port = &iai_the_context.data_path_ports->ports[idx];
 
   if(port->num_data_paths >= IAI_DP_MAX_PATHS)
     rte_exit(EXIT_FAILURE, ":: out of available IAI Data Paths.\n");
@@ -148,11 +159,11 @@ uint8_t iai_configure_data_path_mbus(uint8_t idx, struct data_path_selector_mbus
 }
 
 /*******************************************************************************/
-void iai_close_ports(void){
+void iai_close_data_paths(void){
 	/* closing and releasing resources */
 
-  for(int port_idx=0; port_idx<the_data_path_ports.num_ports; port_idx++){
-    struct data_path_port* p_port = &the_data_path_ports.ports[port_idx];
+  for(int port_idx=0; port_idx<iai_the_context.data_path_ports->num_ports; port_idx++){
+    struct data_path_port* p_port = &iai_the_context.data_path_ports->ports[port_idx];
 
     for(int idx=0; idx<p_port->num_data_paths; idx++) {
       struct data_path *dp = &p_port->data_paths[idx];

@@ -10,6 +10,7 @@ SRCS-y+=src/setup.c
 SRCS-y+=src/mbus.c
 SRCS-y+=src/utils.c
 SRCS-y+=src/datapath.c
+SRCS-y+=src/context.c
 SRCS-y+=src/main.c
 
 all : ${SRCS-y}

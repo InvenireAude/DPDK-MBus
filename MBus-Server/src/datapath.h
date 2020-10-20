@@ -13,6 +13,7 @@ struct data_path_port;
 
 /*******************************************************************************/
 
+typedef void (*data_path_print_fun_ptr)(struct data_path_port* data_path_port);
 typedef void (*data_path_rings_fun_ptr)(struct data_path_port* data_path_port);
 typedef void (*data_path_packet_fun_ptr)(struct data_path_port*, struct rte_mbuf*);
 
@@ -103,11 +104,12 @@ struct data_path_ports{
 };
 /*******************************************************************************/
 
-extern struct  data_path_ports the_data_path_ports;
+
+extern void iai_initialize_datapaths(void);
 
 extern uint8_t iai_configure_data_path_port(uint8_t port_id, data_path_types type_id);
 extern uint8_t iai_configure_data_path_mbus(uint8_t idx, struct data_path_selector_mbus* selector);
 
-extern void iai_close_ports(void);
+extern void iai_close_data_paths(void);
 
 #endif

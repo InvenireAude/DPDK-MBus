@@ -14,8 +14,9 @@ struct shared_info {
 
 };
 
-#define MBUS_SHARED_INFO_NAME  "mbus_info"
-#define MBUS_SHARED_MEM_POOL   "mbus_info"
+#define MBUS_SHARED_INFO_NAME   "mbus_info"
+#define MBUS_SHARED_MEM_POOL    "mbus_mem_pool"
+#define MBUS_SHARED_DATA_PATHS  "mbus_data_paths"
 
 #define MBUS_SHARED_RING_IN    "mbus_ring_in"
 #define MBUS_SHARED_RING_OUT   "mbus_ring_out"

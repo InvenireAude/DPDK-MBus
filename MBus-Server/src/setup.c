@@ -12,23 +12,17 @@
 
 
 /*******************************************************************************/
-struct MainContext TheMainContext  = {
-  .mbuf_pool = NULL
-};
-
-/*******************************************************************************/
 #define CHECK_INTERVAL 1000  /* 100ms */
 #define MAX_REPEAT_TIMES 90  /* 9s (90 * 100ms) in total */
-#define NO_FLAGS 0
 
 /*******************************************************************************/
 struct shared_info *shared    = NULL;
 /*******************************************************************************/
 void iai_setup_mbuf(void){
-	TheMainContext.mbuf_pool = rte_pktmbuf_pool_create(MBUS_SHARED_MEM_POOL, 4095, 128, 0,
+	iai_the_context.mbuf_pool = rte_pktmbuf_pool_create(MBUS_SHARED_MEM_POOL, 4095, 128, 0,
 					    RTE_MBUF_DEFAULT_BUF_SIZE,
 					    rte_socket_id());
-	if (TheMainContext.mbuf_pool == NULL)
+	if (iai_the_context.mbuf_pool == NULL)
 		rte_exit(EXIT_FAILURE, "Cannot init mbuf pool\n");
 
 }
@@ -121,7 +115,7 @@ void iai_init_port(uint16_t port_id, uint16_t nr_queues){
 	rxq_conf.offloads = port_conf.rxmode.offloads;
 
 	for (i = 0; i < nr_queues; i++) {
-		ret = rte_eth_rx_queue_setup(port_id, i, nb_rxd, rte_eth_dev_socket_id(port_id), &rxq_conf, TheMainContext.mbuf_pool);
+		ret = rte_eth_rx_queue_setup(port_id, i, nb_rxd, rte_eth_dev_socket_id(port_id), &rxq_conf, iai_the_context.mbuf_pool);
 		if (ret < 0) {
 			rte_exit(EXIT_FAILURE,
 				":: Rx queue setup failed: err=%d, port=%u\n",

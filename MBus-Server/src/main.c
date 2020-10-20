@@ -44,9 +44,9 @@ static void main_loop(void)
   // single thread for now, for the simplicity ...
 
 	while (!iai_is_quit()) {
-	  for(int port_idx=0; port_idx < the_data_path_ports.num_ports; port_idx++){
+	  for(int port_idx=0; port_idx < iai_the_context.data_path_ports->num_ports; port_idx++){
 
-      struct data_path_port* p_port = &the_data_path_ports.ports[port_idx];
+      struct data_path_port* p_port = &iai_the_context.data_path_ports->ports[port_idx];
 
 	    for (i = 0; i < p_port->num_queues; i++) {
 
@@ -77,6 +77,7 @@ int main(int argc, char **argv){
 
   iai_setup_mbuf();
   iai_init_shared();
+  iai_initialize_datapaths();
 
   uint8_t port_idx = iai_configure_data_path_port(0, IAI_DPT_MBUS);
 
@@ -99,6 +100,6 @@ int main(int argc, char **argv){
 
 	//rte_flow_flush(TheMainContext.port_id, &error);
 
-  iai_close_ports();
+  iai_close_data_paths();
 	return 0;
 }
