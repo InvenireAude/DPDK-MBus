@@ -7,6 +7,7 @@ APP = iai_mbus_client
 # all source are stored in SRCS-y
 SRCS-y+=src/interface.c
 SRCS-y+=src/setup.c
+SRCS-y+=src/backend.c
 SRCS-y+=src/main.c
 
 all : ${SRCS-y}

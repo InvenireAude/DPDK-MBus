@@ -66,7 +66,7 @@ static void main_loop(void)
             printf("Data %08ld %d %ld\n",sequence, data_len, (long)data);
 
             if( (port - start_port) & 0x1 ){
-              printf("Who has it ? %ld - %ld",*(size_t*)data, sequence);
+              printf("Who has it ? [%d] %ld - %ld" ,port, *(size_t*)data, sequence);
               rte_pktmbuf_free(m);
             }else{
               uint16_t ring_id = (port - start_port) / 2;

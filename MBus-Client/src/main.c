@@ -9,38 +9,30 @@
 
 #include "../../MBus-Shared/src/mbus_common.h"
 
+#include <signal.h>
+
 #include "setup.h"
 #include "interface.h"
+#include "backend.h"
+
+
 
 int main(int argc, char *argv[]) {
 
-	int retval;
+  iai_backend_open("libFEX-ExchangeLib.so");
 
+  iai_backend_setup_ptr fun_setup = iai_backend_get_setup_fun("fex_proxy_setup");
+  iai_backend_work_ptr fun_work  = iai_backend_get_work_fun("fex_proxy_work");
+
+  (*fun_setup)(&proxy_interface);
+
+	int retval;
 	if ((retval = rte_eal_init(argc, argv)) < 0)
 		return -1;
 
   iai_setup_client();
 
-  for(;;){
-
-    //for(int ring_id=0; ring_id<TheMainContext.nr_ring_pairs; ring_id++){
-      int ring_id = 0;
-        char *data;
-        uint16_t data_len;
-        void *ctx;
-        if(proxy_interface.p_dequeue(ring_id, (void**)&data, &data_len, &ctx)){
-          printf("Data %d %lx\n", data_len, (long)data);
-          printf("Data 1[%.*s]\n", data_len, data);
-          proxy_interface.p_free(ctx);
-
-          proxy_interface.p_alloc(&ctx,(void**)&data,123);
-          strcpy(data,"Message from client !!");
-
-          proxy_interface.p_enqueue(ring_id ^ 1, data, strlen(data), ctx);
-
-        //}
-      }
-    }
+  (*fun_work)();
 
 }
 

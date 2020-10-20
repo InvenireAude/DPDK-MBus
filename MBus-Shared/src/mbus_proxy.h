@@ -15,5 +15,7 @@ struct proxy_interface {
   iai_interface_alloc_ptr   p_alloc;
 };
 
+typedef void (*iai_backend_setup_ptr)(struct proxy_interface*);
+typedef void (*iai_backend_work_ptr)(void);
 
 #endif
