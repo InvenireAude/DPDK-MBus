@@ -47,7 +47,13 @@ struct data_path_selector_mbus{
 struct data_path_mbus {
   struct data_path_selector_mbus selector;
   struct ether_hdr src_ether_hdr;
+
+  uint32_t  mbus_ring_size;
+  struct rte_mbuf** mbus_ring;
+  struct rte_mbuf** mbus_ring_current_input;
+  struct rte_mbuf** mbus_ring_end_guard;
   size_t sequence;
+  size_t sequence_max_who_has_it;
 };
 
 /*******************************************************************************/

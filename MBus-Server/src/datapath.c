@@ -7,6 +7,7 @@
 #include "utils.h"
 #include <rte_ether.h>
 #include <rte_ethdev.h>
+#include <rte_malloc.h>
 
 /*******************************************************************************/
 void iai_initialize_datapaths(void){
@@ -50,13 +51,67 @@ static void _handle_rings_mbus(struct data_path_port* data_path_port){
     while( rte_ring_sc_dequeue(dp->ring_pair.ring_out, (void**)&m) == 0 ){
 
       printf("Data from client [%.*s]\n", m->data_len, rte_pktmbuf_mtod(m, char *));
+
+      uint32_t slot_id = dp->_private.mbus.sequence % dp->_private.mbus.mbus_ring_size;
+      struct rte_mbuf** slot = dp->_private.mbus.mbus_ring + slot_id;
+
+      if(*slot){
+        rte_pktmbuf_free(*slot);
+      }
+
+      *slot = rte_pktmbuf_clone(m, iai_the_context.mbuf_pool);
+      if(*slot){
+        (*slot)->seqn = dp->_private.mbus.sequence; // note 64 -> 32 bits ?!
+      }
+
       mbus_prepare(m, dp->_private.mbus.sequence, dp->_private.mbus.selector.dst_udp_port, &dp->_private.mbus.src_ether_hdr);
-      dp->_private.mbus.sequence++;
+
       int rc = rte_eth_tx_burst(data_path_port->port_id, 0, &m, 1);
       printf("rc = %d\n",rc);
+      dp->_private.mbus.sequence++;
 
     }
   }
+}
+/*******************************************************************************/
+static void _handle_packet_mbus_who_has_it(struct mbus_who_has_it * p_msg, struct data_path *dp, struct data_path_port* data_path_port){
+
+ size_t sequence = dp->_private.mbus.sequence < dp->_private.mbus.mbus_ring_size ?
+                            0 : dp->_private.mbus.sequence - dp->_private.mbus.mbus_ring_size;
+
+ if(sequence < p_msg->sequence_start)
+    sequence = p_msg->sequence_start; // or return - I can help you any way ...
+
+ while(sequence <= p_msg->sequence_end && sequence < dp->_private.mbus.sequence){
+   printf("Who has it [%ld]\n", sequence);
+   struct rte_mbuf** slot = dp->_private.mbus.mbus_ring + (sequence % dp->_private.mbus.mbus_ring_size);
+   printf("Slot[%lx]:%d\n", (long)*slot, *slot ? (*slot)->seqn : 9999);
+   if( (*slot) && (uint32_t)sequence == (*slot)->seqn){
+
+      struct rte_mbuf* m = rte_pktmbuf_clone(*slot, iai_the_context.mbuf_pool);
+      if(m){
+        mbus_prepare(m, sequence, dp->_private.mbus.selector.dst_udp_port, &dp->_private.mbus.src_ether_hdr);
+        int rc = rte_eth_tx_burst(data_path_port->port_id, 0, &m, 1);
+        printf("Who has it [%ld] rc = %d\n", sequence, rc);
+      }
+   }
+
+   sequence++;
+ };
+
+}
+/*******************************************************************************/
+static void _handle_packet_mbus_send_who_has_it(struct mbus_who_has_it * p_msg, struct data_path *dp, struct data_path_port* data_path_port){
+
+  struct rte_mbuf* m = rte_pktmbuf_alloc(iai_the_context.mbuf_pool);
+  m->data_len = sizeof(struct mbus_who_has_it);
+  struct mbus_who_has_it *data = rte_pktmbuf_mtod(m, struct mbus_who_has_it*);
+
+  *data = *p_msg;
+
+  mbus_prepare_data(m, dp->_private.mbus.selector.dst_udp_port + 1, &dp->_private.mbus.src_ether_hdr);
+  int rc = rte_eth_tx_burst(data_path_port->port_id, 0, &m, 1);
+  printf("Who has it request (%ld,%ld) rc = %d\n", p_msg->sequence_start, p_msg->sequence_end, rc);
 }
 /*******************************************************************************/
 static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rte_mbuf* m){
@@ -81,20 +136,62 @@ static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rt
         if(dp->_private.mbus.selector.dst_udp_port == dst_udp_port){
 
             mbus_extract(m, &data, &data_len, &sequence);
-            printf("Data %08ld %d %ld\n",sequence, data_len, (long)data);
+            printf("Data expected: %08ld, got: %08ld %d %ld\n", dp->_private.mbus.sequence, sequence, data_len, (long)data);
 
-            int nb_enq = rte_ring_sp_enqueue(dp->ring_pair.ring_in, m);
-            printf("Result %d, ring size: %d \n", nb_enq, rte_ring_count(dp->ring_pair.ring_in));
+            if(sequence < dp->_private.mbus.sequence ||
+               sequence > dp->_private.mbus.sequence + dp->_private.mbus.mbus_ring_size){
+              printf("Drop it !\n");
+              rte_pktmbuf_free(m);
+              return;
+            }else{
 
-            return;
+              struct rte_mbuf** slot = dp->_private.mbus.mbus_ring + (sequence % dp->_private.mbus.mbus_ring_size);
+
+              if(*slot){
+                rte_pktmbuf_free(*slot);
+              }
+              m->seqn = sequence;
+              *slot = m;
+
+              if(dp->_private.mbus.sequence_max_who_has_it < dp->_private.mbus.sequence)
+                  dp->_private.mbus.sequence_max_who_has_it = dp->_private.mbus.sequence;
+
+              if(sequence > dp->_private.mbus.sequence_max_who_has_it + 1){
+                struct mbus_who_has_it msg;
+                msg.sequence_start = dp->_private.mbus.sequence_max_who_has_it;
+                msg.sequence_end   = sequence - 1;
+                dp->_private.mbus.sequence_max_who_has_it = msg.sequence_end;
+                _handle_packet_mbus_send_who_has_it(&msg, dp, data_path_port);
+              }
+
+              slot = dp->_private.mbus.mbus_ring + (dp->_private.mbus.sequence % dp->_private.mbus.mbus_ring_size);
+              printf("  Slot [%ld] = %lx, %d \n", dp->_private.mbus.sequence, (long)*slot, *slot ? (*slot)->seqn : 0xffff);
+              while( (*slot) && (uint32_t)dp->_private.mbus.sequence == (*slot)->seqn){
+                //TODO do not copy here, client does not need to free.
+
+                struct rte_mbuf* m = rte_pktmbuf_clone(*slot, iai_the_context.mbuf_pool);
+                if(m){
+                  int rc = rte_ring_sp_enqueue(dp->ring_pair.ring_in, m);
+                  printf("Deliver to client [%ld], rc=%d \n", sequence, rc);
+                }
+
+                dp->_private.mbus.sequence++;
+                slot = dp->_private.mbus.mbus_ring + (dp->_private.mbus.sequence % dp->_private.mbus.mbus_ring_size);
+                printf("  Slot [%ld] = %lx, %d \n", dp->_private.mbus.sequence, (long)*slot, *slot ? (*slot)->seqn : 0xffff);
+              }
+              return;
+            }
 
         }else if(dp->_private.mbus.selector.dst_udp_port + 1 == dst_udp_port ){
 
             mbus_extract(m, &data, &data_len, &sequence);
             struct mbus_who_has_it * p_msg = (struct mbus_who_has_it *)data;
-            printf("Who has it ? [%d] %ld - %ld" , dst_udp_port, p_msg->sequence_start, p_msg->sequence_end);
-            rte_pktmbuf_free(m);
 
+            printf("Who has it ? [%d] %ld - %ld" , dst_udp_port, p_msg->sequence_start, p_msg->sequence_end);
+
+            _handle_packet_mbus_who_has_it(p_msg, dp, data_path_port);
+
+            rte_pktmbuf_free(m);
             return;
         }
       }
@@ -164,8 +261,20 @@ uint8_t iai_configure_data_path_mbus(uint8_t idx, struct data_path_selector_mbus
   dp->_private.mbus.src_ether_hdr.ether_type = htons(0x0800);
 
   dp->ring_pair.ring_id = _next_ring_id++;
-
   iai_init_ring_pair(&dp->ring_pair);
+
+  dp->_private.mbus.mbus_ring_size = 1024;
+  size_t _ring_mem_sz = dp->_private.mbus.mbus_ring_size * sizeof(struct rte_mbuf*);
+  dp->_private.mbus.mbus_ring = rte_malloc("MBUS_RING", _ring_mem_sz, 0);
+
+  bzero(dp->_private.mbus.mbus_ring, _ring_mem_sz);
+
+  dp->_private.mbus.sequence = 0;
+  dp->_private.mbus.sequence_max_who_has_it = 0;
+
+  dp->_private.mbus.mbus_ring_end_guard     = dp->_private.mbus.mbus_ring + dp->_private.mbus.mbus_ring_size;
+  dp->_private.mbus.mbus_ring_current_input = dp->_private.mbus.mbus_ring + (dp->_private.mbus.sequence % dp->_private.mbus.mbus_ring_size);
+
 
   return port->num_data_paths++;
 }
