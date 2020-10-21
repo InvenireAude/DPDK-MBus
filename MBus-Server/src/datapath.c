@@ -4,11 +4,16 @@
 #include "setup.h"
 #include "flow.h"
 #include "mbus.h"
+#include "utils.h"
 #include <rte_ether.h>
 #include <rte_ethdev.h>
 
 /*******************************************************************************/
 void iai_initialize_datapaths(void){
+
+  printf("IAI: ******************************\n");
+  printf("IAI: *** Data path confguration ***\n");
+  printf("IAI: ******************************\n");
 
   const struct rte_memzone *mz;
 
@@ -45,7 +50,7 @@ static void _handle_rings_mbus(struct data_path_port* data_path_port){
     while( rte_ring_sc_dequeue(dp->ring_pair.ring_out, (void**)&m) == 0 ){
 
       printf("Data from client [%.*s]\n", m->data_len, rte_pktmbuf_mtod(m, char *));
-      mbus_prepare(m, dp->_private.mbus.sequence, dp->_private.mbus.selector.dst_udp_port, data_path_port->port_id);
+      mbus_prepare(m, dp->_private.mbus.sequence, dp->_private.mbus.selector.dst_udp_port, &dp->_private.mbus.src_ether_hdr);
       dp->_private.mbus.sequence++;
       int rc = rte_eth_tx_burst(data_path_port->port_id, 0, &m, 1);
       printf("rc = %d\n",rc);
@@ -98,6 +103,7 @@ static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rt
   rte_pktmbuf_free(m);
 }
 /*******************************************************************************/
+
 /*******************************************************************************/
 uint8_t iai_configure_data_path_port(uint8_t port_id, data_path_types type_id){
 
@@ -114,12 +120,13 @@ uint8_t iai_configure_data_path_port(uint8_t port_id, data_path_types type_id){
   p_new->port_id = port_id;
   p_new->num_queues = 1;
 
+  printf("IAI: Data Path Port [%d]: type = %d, eth_port = %d \n", iai_the_context.data_path_ports->num_ports, type_id, port_id);
+
   iai_init_port(port_id, p_new->num_queues);
 
   switch(type_id){
 
     case IAI_DPT_MBUS:
-
       p_new->handlers.ptr_handle_rings  = &_handle_rings_mbus;
       p_new->handlers.ptr_handle_packet = &_handle_packet_mbus;
     break;
@@ -128,10 +135,12 @@ uint8_t iai_configure_data_path_port(uint8_t port_id, data_path_types type_id){
     	rte_exit(EXIT_FAILURE, ":: uknown IAI Data Path port type: %d, port: %d \n", type_id, port_id);
   }
 
-  printf("IAI Data Path Port [%d]: type = %d, eth_port = %d \n", iai_the_context.data_path_ports->num_ports, type_id, port_id);
+  printf("IAI: Data Path Port [%d]: is ready ! \n", iai_the_context.data_path_ports->num_ports);
 
   return iai_the_context.data_path_ports->num_ports++;
 }
+/*******************************************************************************/
+static int16_t _next_ring_id = 0;
 /*******************************************************************************/
 uint8_t iai_configure_data_path_mbus(uint8_t idx, struct data_path_selector_mbus* selector){
 
@@ -147,14 +156,13 @@ uint8_t iai_configure_data_path_mbus(uint8_t idx, struct data_path_selector_mbus
   dp->_private.mbus.selector = *selector;
   dp->_private.mbus.sequence = 0;
 
-  printf("IAI Data Path [%d]: [mbus] : dst = %d.%d.%d.%d, port = %d \n", idx,
-      (selector->dst_ip & 0xff000000) >> 24,
-      (selector->dst_ip & 0x00ff0000) >> 16,
-      (selector->dst_ip & 0x0000ff00) >> 8,
-      (selector->dst_ip & 0x000000ff),
-      selector->dst_udp_port);
+  printf("IAI: Data Path Port [%d, %d]: [mbus] :",idx,port->num_data_paths);
+  println_ip_addr_port(" dst = ", selector->dst_ip, selector->dst_udp_port);
 
-  static int16_t _next_ring_id;
+  rte_eth_macaddr_get(port->port_id, &dp->_private.mbus.src_ether_hdr.s_addr);
+  ether_addr_copy(&ether_multicast, &dp->_private.mbus.src_ether_hdr.d_addr);
+  dp->_private.mbus.src_ether_hdr.ether_type = htons(0x0800);
+
   dp->ring_pair.ring_id = _next_ring_id++;
 
   iai_init_ring_pair(&dp->ring_pair);

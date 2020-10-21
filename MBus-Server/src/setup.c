@@ -9,7 +9,7 @@
 #include <rte_flow.h>
 
 #include "flow.h"
-
+#include "utils.h"
 
 /*******************************************************************************/
 #define CHECK_INTERVAL 1000  /* 100ms */
@@ -96,7 +96,7 @@ void iai_init_port(uint16_t port_id, uint16_t nr_queues){
 	rte_eth_dev_info_get(port_id, &dev_info);
 	port_conf.txmode.offloads &= dev_info.tx_offload_capa;
 
-  printf(":: initializing port: %d\n", port_id);
+  printf("IAI: Initializing eth port: %d \n", port_id);
 	ret = rte_eth_dev_configure(port_id, nr_queues, nr_queues, &port_conf);
 	if (ret < 0) {
 		rte_exit(EXIT_FAILURE,
@@ -149,19 +149,11 @@ void iai_init_port(uint16_t port_id, uint16_t nr_queues){
   /* Display the port MAC address. */
 	struct ether_addr addr;
 	rte_eth_macaddr_get(port_id, &addr);
-	printf("Port %u MAC: %02" PRIx8 " %02" PRIx8 " %02" PRIx8
-			   " %02" PRIx8 " %02" PRIx8 " %02" PRIx8 "\n",
-			port_id,
-			addr.addr_bytes[0], addr.addr_bytes[1],
-			addr.addr_bytes[2], addr.addr_bytes[3],
-			addr.addr_bytes[4], addr.addr_bytes[5]);
-
-	printf(":: initializing port: %d done\n", port_id);
-
+  println_ether_addr("IAI: MAC:", &addr);
 }
 /*******************************************************************************/
 void iai_close_port(uint16_t port_id){
-   printf("IAI eth_port = %d is closed. \n", port_id);
+   printf("IAI: eth_port = %d is closed. \n", port_id);
 //rte_flow_flush(p_port->port_id, &error);
   rte_eth_dev_stop(port_id);
 	rte_eth_dev_close(port_id);
@@ -173,7 +165,7 @@ void iai_close_port(uint16_t port_id){
 
 void iai_init_ring_pair(struct ring_pair* rings){
 
-  printf("Initializing rings [ %d ]... \n", rings->ring_id);
+  printf("IAI: Initializing rings [ %d ] \n", rings->ring_id);
 	rings->ring_in= rte_ring_create(iai_get_ring_name(MBUS_SHARED_RING_IN, rings->ring_id), RING_IN_SIZE,  rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
   if (rings->ring_in == NULL)
 			rte_exit(EXIT_FAILURE, "Cannot create ring input queue ");
@@ -184,7 +176,6 @@ void iai_init_ring_pair(struct ring_pair* rings){
 
   shared->num_ring_pairs++;
 
-  printf("Done! \n");
 }
 /*******************************************************************************/
 void iai_close_ring_pair(struct ring_pair* rings){

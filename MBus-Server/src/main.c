@@ -41,6 +41,10 @@ static void main_loop(void)
 	uint16_t nb_rx;
 	uint16_t i,j;
 
+  printf("IAI: ****************************************\n");
+  printf("IAI: *** Main loop started on %2d port(s). ***\n", iai_the_context.data_path_ports->num_ports);
+  printf("IAI: ****************************************\n");
+
   // single thread for now, for the simplicity ...
 
 	while (!iai_is_quit()) {
@@ -80,6 +84,7 @@ int main(int argc, char **argv){
   iai_initialize_datapaths();
 
   uint8_t port_idx = iai_configure_data_path_port(0, IAI_DPT_MBUS);
+  //uint8_t port_idx1 = iai_configure_data_path_port(1, IAI_DPT_MBUS);
 
   struct data_path_selector_mbus selectorInput = {
     .dst_ip = DEST_IP,

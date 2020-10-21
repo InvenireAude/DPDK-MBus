@@ -24,8 +24,26 @@ bool iai_is_quit(void){
 	return _iai_force_quit;
 }
 /*******************************************************************************/
-void print_ether_addr(const char *what, struct ether_addr *eth_addr) {
+void println_ether_addr(const char *what, struct ether_addr *eth_addr) {
 	char buf[ETHER_ADDR_FMT_SIZE];
 	ether_format_addr(buf, ETHER_ADDR_FMT_SIZE, eth_addr);
-	printf("%s%s", what, buf);
+	printf("%s%s\n", what, buf);
 }
+/*******************************************************************************/
+void println_ip_addr(const char *what, uint32_t ip){
+  printf("%s%d.%d.%d.%d\n", what,
+      (ip & 0xff000000) >> 24,
+      (ip & 0x00ff0000) >> 16,
+      (ip & 0x0000ff00) >> 8,
+      (ip & 0x000000ff));
+}
+/*******************************************************************************/
+void println_ip_addr_port(const char *what, uint32_t ip, uint16_t port){
+  printf("%s%d.%d.%d.%d(%d)\n", what,
+      (ip & 0xff000000) >> 24,
+      (ip & 0x00ff0000) >> 16,
+      (ip & 0x0000ff00) >> 8,
+      (ip & 0x000000ff),
+      port);
+}
+/*******************************************************************************/

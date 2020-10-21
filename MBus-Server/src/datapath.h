@@ -46,6 +46,7 @@ struct data_path_selector_mbus{
 
 struct data_path_mbus {
   struct data_path_selector_mbus selector;
+  struct ether_hdr src_ether_hdr;
   size_t sequence;
 };
 

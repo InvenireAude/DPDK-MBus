@@ -30,7 +30,7 @@ void mbus_extract(struct rte_mbuf *m, char** pp_data, uint16_t *p_data_len, size
 }
 /*******************************************************************************/
 #define DEST_IP ((226<<24) + (1<<16) + (1<<8) + 1) /* dest ip = 192.168.1.1 */
-void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence, uint16_t port, uint16_t port_id){
+void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence, uint16_t port, struct ether_hdr* src_ether_hdr){
 
   char *pkt_data = rte_pktmbuf_mtod(created_pkt, char *);
   uint16_t orig_data_len = created_pkt->data_len;
@@ -68,10 +68,7 @@ void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence, uint16_t port, 
   ether_hdr--;
   created_pkt->data_off -= sizeof(struct ether_hdr);
 
-  rte_eth_macaddr_get(port_id, &ether_hdr->s_addr);
-  /* Set multicast address 01-1B-19-00-00-00. */
-  ether_addr_copy(&ether_multicast, &ether_hdr->d_addr);
-  ether_hdr->ether_type = htons(0x0800);
+  *ether_hdr = *src_ether_hdr;
 
   created_pkt->data_len = _hdr_len + orig_data_len;
   created_pkt->pkt_len = _hdr_len + orig_data_len;
@@ -82,6 +79,8 @@ void mbus_prepare(struct rte_mbuf *created_pkt, size_t sequence, uint16_t port, 
 
   ipv4_hdr->hdr_checksum = rte_ipv4_cksum(ipv4_hdr);
 
-  /* Transmit the packet. */
+  printf(" :: check sum [%0x]\n",ipv4_hdr->hdr_checksum);
+
+  udp_hdr->dgram_cksum = rte_ipv4_udptcp_cksum(ipv4_hdr,udp_hdr);
 }
 /*******************************************************************************/
