@@ -13,13 +13,14 @@ struct data_path_port;
 
 /*******************************************************************************/
 
-typedef void (*data_path_print_fun_ptr)(struct data_path_port* data_path_port);
+typedef void (*data_path_on_start_fun_ptr)(struct data_path_port* data_path_port);
 typedef void (*data_path_rings_fun_ptr)(struct data_path_port* data_path_port);
 typedef void (*data_path_packet_fun_ptr)(struct data_path_port*, struct rte_mbuf*);
 
 /*******************************************************************************/
 
 struct data_path_handlers{
+  data_path_on_start_fun_ptr    ptr_handle_on_start;
   data_path_rings_fun_ptr       ptr_handle_rings;
   data_path_packet_fun_ptr      ptr_handle_packet;
 };
@@ -46,7 +47,7 @@ struct data_path_selector_mbus{
 
 struct data_path_mbus {
   struct data_path_selector_mbus selector;
-  struct ether_hdr src_ether_hdr;
+  struct rte_ether_hdr src_ether_hdr;
 
   uint32_t  mbus_ring_size;
   struct rte_mbuf** mbus_ring;
@@ -74,9 +75,17 @@ union data_path_private {
   struct data_path_id_only id_only;
 };
 
+struct data_path_stats{
+  size_t num_tx;
+  size_t num_rx;
+  size_t num_rx_drop;
+  size_t num_who_has;
+};
+
 struct data_path{
   union data_path_private _private;
   struct ring_pair ring_pair;
+  struct data_path_stats stats;
 };
 /*******************************************************************************/
 

@@ -10,7 +10,7 @@
 #include "../../MBus-Shared/src/mbus_common.h"
 
 #include <signal.h>
-
+#include <stdlib.h>
 #include "setup.h"
 #include "interface.h"
 #include "backend.h"
@@ -25,7 +25,10 @@ int main(int argc, char *argv[]) {
 
   iai_setup_client();
 
-  iai_backend_core_ptr fun_core = iai_backend_open("libFEX-ExchangeLib.so", "fex_proxy_core");
+  const char *lib_name   = getenv("IAI_LIB") ? getenv("IAI_LIB") : "libFEX-ExchangeLib.so";
+  const char *proxy_name = getenv("IAI_PROXY") ? getenv("IAI_PROXY") : "fex_proxy_core";
+
+  iai_backend_core_ptr fun_core = iai_backend_open(lib_name, proxy_name);
 
   (*fun_core)(&proxy_interface);
 

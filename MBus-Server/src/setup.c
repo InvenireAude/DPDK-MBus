@@ -147,7 +147,7 @@ void iai_init_port(uint16_t port_id, uint16_t nr_queues){
 	iai_assert_link_status(port_id);
 
   /* Display the port MAC address. */
-	struct ether_addr addr;
+	struct rte_ether_addr addr;
 	rte_eth_macaddr_get(port_id, &addr);
   println_ether_addr("IAI: MAC:", &addr);
 }

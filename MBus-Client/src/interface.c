@@ -42,7 +42,7 @@ static bool iai_interface_enqueue(uint16_t ring_id, void* p_data, uint16_t data_
   m->pkt_len  = data_len;
 
   int rc = rte_ring_mp_enqueue(TheMainContext.ring_pairs[ring_id].ring_out, (void*)m);
-  printf("Ring size: %d \n", rte_ring_count(TheMainContext.ring_pairs[ring_id].ring_out));
+  printf("Ring size: %d, bytes %d \n", rte_ring_count(TheMainContext.ring_pairs[ring_id].ring_out), data_len);
 
   if(rc != 0)
     return false;

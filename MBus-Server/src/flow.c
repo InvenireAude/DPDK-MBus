@@ -2,6 +2,7 @@
 #include "flow.h"
 
 #include <rte_udp.h>
+#include <rte_ip.h>
 
 /*******************************************************************************/
 
@@ -72,12 +73,12 @@ iai_generate_flow(
 */
 bool iai_extract_udp(struct rte_mbuf *m, uint32_t *pDstAddress, uint32_t *pSrcAddress, uint16_t *pPort){
 
-    struct ether_hdr *eth_hdr;
-    struct ipv4_hdr  *ip_hdr;
-    struct udp_hdr  *udp_hdr;
+    struct rte_ether_hdr *eth_hdr;
+    struct rte_ipv4_hdr  *ip_hdr;
+    struct rte_udp_hdr  *udp_hdr;
 
-	  eth_hdr = rte_pktmbuf_mtod(m,struct ether_hdr *);
-		ip_hdr = (struct ipv4_hdr *)(eth_hdr + 1);
+	  eth_hdr = rte_pktmbuf_mtod(m,struct rte_ether_hdr *);
+		ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
 
     // printf("Has packet %d bytes, type: %d %d .\n", m->data_len, ip_hdr->next_proto_id, ntohs(eth_hdr->ether_type));
 
@@ -90,7 +91,7 @@ bool iai_extract_udp(struct rte_mbuf *m, uint32_t *pDstAddress, uint32_t *pSrcAd
 
     *pSrcAddress = ntohl(ip_hdr->src_addr);
     *pDstAddress = ntohl(ip_hdr->dst_addr);
-	   udp_hdr     = (struct udp_hdr *)(ip_hdr + 1);
+	   udp_hdr     = (struct rte_udp_hdr *)(ip_hdr + 1);
     *pPort       = ntohs(udp_hdr->dst_port);
   return true;
 }

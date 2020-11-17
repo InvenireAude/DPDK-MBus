@@ -47,6 +47,12 @@ static void main_loop(void)
 
   // single thread for now, for the simplicity ...
 
+  for(int port_idx=0; port_idx < iai_the_context.data_path_ports->num_ports; port_idx++){
+      struct data_path_port* p_port = &iai_the_context.data_path_ports->ports[port_idx];
+      p_port->handlers.ptr_handle_on_start(p_port);
+  }
+
+
 	while (!iai_is_quit()) {
 	  for(int port_idx=0; port_idx < iai_the_context.data_path_ports->num_ports; port_idx++){
 

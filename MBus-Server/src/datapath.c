@@ -38,6 +38,7 @@ void iai_initialize_datapaths(void){
 
 // }
 /*******************************************************************************/
+
 /*******************************************************************************/
 static void _handle_rings_mbus(struct data_path_port* data_path_port){
 
@@ -50,7 +51,7 @@ static void _handle_rings_mbus(struct data_path_port* data_path_port){
 
     while( rte_ring_sc_dequeue(dp->ring_pair.ring_out, (void**)&m) == 0 ){
 
-      printf("Data from client [%.*s]\n", m->data_len, rte_pktmbuf_mtod(m, char *));
+      printf("Data from client [%d] [%.*s]\n", m->data_len, m->data_len, rte_pktmbuf_mtod(m, char *));
 
       uint32_t slot_id = dp->_private.mbus.sequence % dp->_private.mbus.mbus_ring_size;
       struct rte_mbuf** slot = dp->_private.mbus.mbus_ring + slot_id;
@@ -59,17 +60,20 @@ static void _handle_rings_mbus(struct data_path_port* data_path_port){
         rte_pktmbuf_free(*slot);
       }
 
+
       *slot = rte_pktmbuf_clone(m, iai_the_context.mbuf_pool);
       if(*slot){
         (*slot)->seqn = dp->_private.mbus.sequence; // note 64 -> 32 bits ?!
       }
 
+
       mbus_prepare(m, dp->_private.mbus.sequence, dp->_private.mbus.selector.dst_udp_port, &dp->_private.mbus.src_ether_hdr);
+
 
       int rc = rte_eth_tx_burst(data_path_port->port_id, 0, &m, 1);
       printf("rc = %d\n",rc);
       dp->_private.mbus.sequence++;
-
+      dp->stats.num_tx++;
     }
   }
 }
@@ -101,7 +105,7 @@ static void _handle_packet_mbus_who_has_it(struct mbus_who_has_it * p_msg, struc
 
 }
 /*******************************************************************************/
-static void _handle_packet_mbus_send_who_has_it(struct mbus_who_has_it * p_msg, struct data_path *dp, struct data_path_port* data_path_port){
+static void _handle_packet_mbus_send_who_has_it(const struct mbus_who_has_it * p_msg, struct data_path *dp, struct data_path_port* data_path_port){
 
   struct rte_mbuf* m = rte_pktmbuf_alloc(iai_the_context.mbuf_pool);
   m->data_len = sizeof(struct mbus_who_has_it);
@@ -112,6 +116,16 @@ static void _handle_packet_mbus_send_who_has_it(struct mbus_who_has_it * p_msg, 
   mbus_prepare_data(m, dp->_private.mbus.selector.dst_udp_port + 1, &dp->_private.mbus.src_ether_hdr);
   int rc = rte_eth_tx_burst(data_path_port->port_id, 0, &m, 1);
   printf("Who has it request (%ld,%ld) rc = %d\n", p_msg->sequence_start, p_msg->sequence_end, rc);
+
+  dp->stats.num_who_has++;
+}
+/*******************************************************************************/
+static void _handle_on_start_mbus(struct data_path_port* data_path_port){
+  for(int idx=0; idx<data_path_port->num_data_paths; idx++){
+    struct data_path *dp = &data_path_port->data_paths[idx];
+    const struct mbus_who_has_it msg = {0, 0xffff };
+    _handle_packet_mbus_send_who_has_it(&msg, dp, data_path_port);
+  }
 }
 /*******************************************************************************/
 static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rte_mbuf* m){
@@ -142,6 +156,7 @@ static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rt
                sequence > dp->_private.mbus.sequence + dp->_private.mbus.mbus_ring_size){
               printf("Drop it !\n");
               rte_pktmbuf_free(m);
+              dp->stats.num_rx_drop++;
               return;
             }else{
 
@@ -179,6 +194,8 @@ static void _handle_packet_mbus(struct data_path_port* data_path_port, struct rt
                 slot = dp->_private.mbus.mbus_ring + (dp->_private.mbus.sequence % dp->_private.mbus.mbus_ring_size);
                 printf("  Slot [%ld] = %lx, %d \n", dp->_private.mbus.sequence, (long)*slot, *slot ? (*slot)->seqn : 0xffff);
               }
+
+              dp->stats.num_rx++;
               return;
             }
 
@@ -224,6 +241,7 @@ uint8_t iai_configure_data_path_port(uint8_t port_id, data_path_types type_id){
   switch(type_id){
 
     case IAI_DPT_MBUS:
+      p_new->handlers.ptr_handle_on_start      = &_handle_on_start_mbus;
       p_new->handlers.ptr_handle_rings  = &_handle_rings_mbus;
       p_new->handlers.ptr_handle_packet = &_handle_packet_mbus;
     break;
@@ -250,6 +268,8 @@ uint8_t iai_configure_data_path_mbus(uint8_t idx, struct data_path_selector_mbus
     rte_exit(EXIT_FAILURE, ":: out of available IAI Data Paths.\n");
 
   struct data_path *dp = &port->data_paths[port->num_data_paths];
+  bzero(dp, sizeof(*dp));
+
   dp->_private.mbus.selector = *selector;
   dp->_private.mbus.sequence = 0;
 
@@ -257,7 +277,7 @@ uint8_t iai_configure_data_path_mbus(uint8_t idx, struct data_path_selector_mbus
   println_ip_addr_port(" dst = ", selector->dst_ip, selector->dst_udp_port);
 
   rte_eth_macaddr_get(port->port_id, &dp->_private.mbus.src_ether_hdr.s_addr);
-  ether_addr_copy(&ether_multicast, &dp->_private.mbus.src_ether_hdr.d_addr);
+  rte_ether_addr_copy(&ether_multicast, &dp->_private.mbus.src_ether_hdr.d_addr);
   dp->_private.mbus.src_ether_hdr.ether_type = htons(0x0800);
 
   dp->ring_pair.ring_id = _next_ring_id++;
@@ -289,6 +309,13 @@ void iai_close_data_paths(void){
     for(int idx=0; idx<p_port->num_data_paths; idx++) {
       struct data_path *dp = &p_port->data_paths[idx];
       iai_close_ring_pair(&dp->ring_pair);
+
+      printf("IAI Data Path Port [%d], stats (rx: %10ld, rx_drop: %10ld, tx: %10ld, whi: %10ld) \n", port_idx,
+                                                  dp->stats.num_rx,
+                                                  dp->stats.num_rx_drop,
+                                                  dp->stats.num_tx,
+                                                  dp->stats.num_who_has);
+
     }
 
     printf("IAI Data Path Port [%d], shutdown ...\n", port_idx);
